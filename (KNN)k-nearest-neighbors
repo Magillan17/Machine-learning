@@ -1,0 +1,82 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+"""Создадим df, в котором будет содержаться информация о апельсинах и лимонах.
+Признаков будет 2:
+1ый признак - Вес фрукта
+2ой признак - Яркость в шкале желтый-красный
+И результирующий вектор - будет тип фрукта O-апельсин или Л-лимон"""
+
+train = []
+for i in range(1000):
+    fruit = np.random.choice(['L', 'O'])
+    if fruit == 'O':
+        weight = np.random.randint(130, 210)
+    else:
+        weight = np.random.randint(90, 145)
+    if fruit == 'O':
+        intensity = np.random.randint(50, 90)
+    else:
+        intensity = np.random.randint(10, 57)
+
+    train.append([weight, intensity, fruit])
+
+train_df = pd.DataFrame(train, columns=['WEIGHT', 'INTENSITY', 'FRUIT'])
+
+fig, ax = plt.subplots()
+ax.set_title("График фруктов")
+ax.set_xlabel("Вес фруктов")
+ax.set_ylabel("Яркость фруктов в шкале 'Ж-К'")
+ax.scatter(train_df.loc[train_df['FRUIT'] == 'O']['WEIGHT'], train_df.loc[train_df['FRUIT'] == 'O']['INTENSITY'], c='red')
+ax.scatter(train_df.loc[train_df['FRUIT'] != 'O']['WEIGHT'], train_df.loc[train_df['FRUIT'] != 'O']['INTENSITY'], c='yellow')
+plt.show()
+
+
+# ----------------------------------------------------------------------------
+
+
+def euclidean_distance(row1, row2):
+    distance = 0.0
+    for i in range(len(row1) - 1):
+        distance += (row1[i] - row2[i]) ** 2
+    return distance ** 0.5
+
+
+example = train[0]
+"""Проверяем работу алгоритма на проверке расстояний до наших элементов"""
+
+
+# for row in train:
+#     distance = euclidean_distance(example, row)
+#     print(distance)
+
+def get_neighbors(train, test_row, num_neighbors):
+    distances = list()
+    for train_row in train:
+        dist = euclidean_distance(test_row, train_row)
+        distances.append((train_row, dist))
+    distances.sort(key=lambda tup: tup[1])
+    neighbors = list()
+    for i in range(num_neighbors):
+        neighbors.append(distances[i][0])
+    return neighbors
+
+
+"""проверяем колличество соседей, которое нашел наш алгоритм """
+
+
+# neighbors = get_neighbors(train, example, 3)
+# for neighbor in neighbors:
+# 	print(neighbor)
+
+def predict_classification(train, test_row, num_neighbors):
+    neighbors = get_neighbors(train, test_row, num_neighbors)
+    output_values = [row[-1] for row in neighbors]
+    prediction = max(set(output_values), key=output_values.count)
+    return prediction
+
+
+prediction = predict_classification(train, example, 3)
+print(prediction)
+
