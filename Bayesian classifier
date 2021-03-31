@@ -1,0 +1,178 @@
+#https://www.kaggle.com/uciml/pima-indians-diabetes-database
+
+import csv
+
+"""1. Создание функции для загрузки и обработки df"""
+
+
+def loading(f):
+    file = open(f, "r")
+    df = csv.reader(file)
+    dataset = []
+    for i in df:
+        if len(dataset) == 0:
+            dataset.append(i)
+        else:
+            dataset.append([float(x) for x in i])
+
+    dataset.pop(0)
+    file.close()
+    # print(*dataset, sep='\n')
+    return dataset
+
+
+"""Создадим функцию, которая разделить наш набор данных на обучающую и тестовую выборку."""
+
+import random
+
+
+def spliter(df, size_split=0.2):
+    train_lenght = len(df) * (1 - size_split) // 1
+    train = []
+    while train_lenght >= len(train):
+        index = random.randint(0, len(df) - 1)
+        train.append(df[index])
+        df.pop(index)
+
+    return [train, df]
+
+
+"""Для более верного прогнозирования класса нам необходимо среднее значения и стандартное отклонение
+для каждого из атрибутов по значению класса. Для этого сначала нам необходимо разделить тестовую выборку на 
+типы классов, которые у нас есть."""
+
+
+def sep_class(df):
+    sl = {}
+    for i in range(len(df)):
+        if df[i][-1] not in sl:
+            sl[df[i][-1]] = [df[i]]
+        else:
+            sl[df[i][-1]].append(df[i])
+    return sl
+
+
+"""Для каждого из параметров нам будет необходимо вычитать среднее значение, и стандартное отклоние."""
+
+
+def mean(seq):
+    return sum(seq) / len(seq)
+
+
+def std_features(seq):
+    sr_zn = mean(seq)
+    dispersia = sum([(i - sr_zn) ** 2 for i in seq]) / len(seq)
+    std = dispersia ** 0.5
+    return std
+
+
+"""Напишем функцию которая принимает на вход сразу же несколько фичей и возвращает результат
+в виде списка кортежей из средних и стд по каждому из фичей"""
+
+
+def all_std(df):
+    sl = {}
+    for row in df:
+        for i in range(len(row) - 1):
+            if i not in sl:
+                sl[i] = [row[i]]
+            else:
+                sl[i].append(row[i])
+    answer = []
+    for i in range(len(df[0]) - 1):
+        m = mean(sl[i])
+        std = std_features(sl[i])
+        answer.append((m, std))
+    return answer
+
+
+"""Напишим расчет средних и стд с учетом классов"""
+
+
+def std_by_class(df):
+    sl = sep_class(df)
+    answer = {}
+    for i in sl:
+        answer[i] = all_std(sl[i])
+    return answer
+
+
+"""Чтобы сделать прогноз нам необходимо рассчитать также гауссовскую ф-ию плотности вероятности"""
+
+
+def func_Gauss_plotnosti(x, mean, std):
+    stepen = (x - mean) ** 2 / (2 * std ** 2)
+    exponenta = 2.71828 ** (-stepen)
+    s = (1 / (std * (2 * 3.141592) ** 0.5)) * exponenta
+    return s
+
+
+"""Знаят вероятность принажделности к классу, по одному фичу. Создадим общую вероятность. Для этого нам будет необходимо вычислить
+вероятности по каждому из классов и их перемножим
+Наша функция на вход будет принимать 2 переменные:
+1. Словарь с средними и стд по каждому из фичей отдельно для каждого из классов
+2. Входящий вектор, тип которого нам необходимо узнать"""
+
+
+def veroyatnost_classa(sl, inp_vect):
+    answer = {}
+    for klass in sl:
+        p = 1
+        for i in range(len(sl[klass])):
+            ver_features = func_Gauss_plotnosti(inp_vect[0], sl[klass][i][0], sl[klass][i][1])
+            p *= ver_features
+        answer[klass] = p
+    return answer
+
+
+"""Напишем функцию, которая делает прогноз. Для этого сравним вероятности отношения к классу и вернем название класса,
+к которому лежит самая наибольшая вероятность"""
+
+
+def predict(sl, inp_vect):
+    ver_prinadlejnosti = veroyatnost_classa(sl, inp_vect)
+    best_class = max(ver_prinadlejnosti, key=lambda x: ver_prinadlejnosti[x])
+    return best_class
+
+
+"""Напишем функию которая возвращает список предиктов для всех элементов тестовой выборки"""
+
+
+def all_predict(sl, test):
+    answer = []
+    for row in test:
+        result = predict(sl, row)
+        answer.append(result)
+    return answer
+
+
+"""Функция оценки. Напишем саму простую функцию которая будет оценивать по метрики accuracy (процент правильных ответов)"""
+
+
+def accuracy(test, predict):
+    true_predict = 0
+    for i in range(len(test)):
+        if predict[i] == test[i][-1]:
+            true_predict += 1
+    return (true_predict / len(predict)) * 100
+
+
+"""Создадим функцию, которая связывает все вместе. И выводит результат нашего алгоритма"""
+
+
+def main():
+    # Obrabotka
+    filename = 'diabetes.csv'
+    size_train = 0.33
+    df = loading(filename)
+    train, test = spliter(df, size_train)
+    # Obychenie(Polychenie koeff)
+    std_class = std_by_class(train)
+    # Predict
+    predicts = all_predict(std_class, test)
+    acc = accuracy(test, predicts)
+    print(f'Result accuracy {acc}%')
+    return acc
+
+
+main()
