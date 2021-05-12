@@ -1,0 +1,32 @@
+# Функция которая возвращает матрицу сумм квадратов 3х3. 
+# Написание матрицы для проверки
+import random
+h_shape = random.randint(4,10)
+row_shape = random.randint(4, 10)
+
+matrix = [[random.randint(1,100) for i in range(row_shape)] for j in range(h_shape)]
+print(*matrix, sep='\n')
+
+# Cама функция
+def boxBlur(m_s):
+    s = 0
+    answer = []
+    for i in range(len(m_s) - 2):
+        t = []
+
+        for j in range(len(m_s[i]) - 2):
+            s = sum(m_s[i][j:j + 3]) +  sum(m_s[i+ 1][j:j + 3]) +  sum(m_s[i + 2][j:j + 3])
+            # print(m_s[i][j:j + 3])
+            # print(m_s[i + 1][j:j + 3])
+            # print(m_s[i + 2][j:j + 3])
+            # print()
+            t.append(s)
+        answer.append(t)
+
+    return answer
+
+#Проверка работы функции
+print()
+print(*boxBlur(matrix),sep='\n')
+
+
