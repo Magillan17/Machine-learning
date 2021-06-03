@@ -1,0 +1,195 @@
+# http://ufldl.stanford.edu/housenumbers/train_32x32.mat
+# http://ufldl.stanford.edu/housenumbers/test_32x32.mat
+
+import numpy as np
+import scipy.io as io
+import os
+import matplotlib.pyplot as plt
+
+
+def load_data_mat(filename, max_samples, seed=42):
+    '''
+    Loads numpy arrays from .mat file
+    Returns:
+    X, np array (num_samples, 32, 32, 3) - images
+    y, np array of int (num_samples) - labels
+    '''
+    raw = io.loadmat(filename)
+    X = raw['X']  # Array of [32, 32, 3, n_samples]
+    y = raw['y']  # Array of [n_samples, 1]
+    X = np.moveaxis(X, [3], [0])
+    y = y.flatten()
+    # Fix up class 0 to be 0
+    y[y == 10] = 0
+
+    np.random.seed(seed)
+    samples = np.random.choice(np.arange(X.shape[0]),
+                               max_samples,
+                               replace=False)
+
+    return X[samples].astype(np.float32), y[samples]
+
+
+def load_svhn(folder, max_train, max_test):
+    '''
+    Loads SVHN dataset from file
+    Arguments:
+    Returns:
+    train_X, np array (num_train, 32, 32, 3) - training images
+    train_y, np array of int (num_train) - training labels
+    test_X, np array (num_test, 32, 32, 3) - test images
+    test_y, np array of int (num_test) - test labels
+    '''
+    train_X, train_y = load_data_mat("train_32x32.mat", max_train)
+    test_X, test_y = load_data_mat("test_32x32.mat", max_test)
+    return train_X, train_y, test_X, test_y
+
+
+def random_split_train_val(X, y, num_val, seed=42):
+    np.random.seed(seed)
+
+    indices = np.arange(X.shape[0])
+    np.random.shuffle(indices)
+
+    train_indices = indices[:-num_val]
+    train_X = X[train_indices]
+    train_y = y[train_indices]
+
+    val_indices = indices[-num_val:]
+    val_X = X[val_indices]
+    val_y = y[val_indices]
+
+    return train_X, train_y, val_X, val_y
+
+
+"""Загрузим из нашего датасэта тренировочную выборку размером 1000 и тестовую выборку размером 100"""
+train_X, train_y, test_X, test_y = load_svhn("data", max_train=1000, max_test=100)
+
+"""Проверим размеры нашего датасэта элемента """
+print(train_X.shape)
+
+"""Данный ниже код отображает наш датасэт. Как нужно его изменить чтобы отображлось по 2 экземпляра каждого класса?
+Экземпляры только одного из классов?"""
+samples_per_class = 5  # Number of samples per class to visualize
+plot_index = 1
+for example_index in range(samples_per_class):
+    for class_index in range(1):
+        plt.subplot(5, 10, plot_index)
+        image = train_X[train_y == class_index][example_index]
+        plt.imshow(image.astype(np.uint8))
+        plt.axis('off')
+        plot_index += 1
+
+plt.show()
+
+"""Реализация бинарной классификации между цифрами 0 и цифрой 9 """
+"""Создаем маски для тестовоой и тренировочной выборки. Далее отбираем значения согласно нашей маски """
+# First, let's prepare the labels and the source data
+
+# Only select 0s and 9s
+binary_train_mask = (train_y == 0) | (train_y == 9)
+
+binary_train_X = train_X[binary_train_mask]
+binary_train_y = train_y[binary_train_mask] == 0
+""" Реализовать аналог для тестовой выборки """
+binary_test_mask = (test_y == 0) | (test_y == 9)
+binary_test_X = test_X[binary_test_mask]
+binary_test_y = test_y[binary_test_mask] == 0
+# Reshape to 1-dimensional array [num_samples, 32*32*3]
+""" Вытягиваем всю матрицу в вектор """
+binary_train_X = binary_train_X.reshape(binary_train_X.shape[0], -1)
+binary_test_X = binary_test_X.reshape(binary_test_X.shape[0], -1)
+""" Посмотреть размерности до и после. """
+print(binary_test_X.shape)
+print(binary_train_X.shape)
+
+""" Создаем класс KNN """
+
+
+class KNN:
+    """
+    K-neariest-neighbor classifier using L1 loss
+    """
+
+    def __init__(self, k=1):
+        self.k = k
+
+    def fit(self, X, y):
+        self.train_X = X
+        self.train_y = y
+
+    def predict(self, X, num_loops=0):
+        if num_loops == 0:
+            dists = self.compute_distances_no_loops(X)
+        else:
+            dists = self.compute_distances_one_loop(X)
+        if self.train_y.dtype == np.bool_:
+            return self.predict_labels_binary(dists)
+        else:
+            return 'ERROR. ONLY BINARY CLASSIFICATION'
+
+    def compute_distances_two_loops(self, X):
+        num_train = self.train_X.shape[0]
+        num_test = X.shape[0]
+        dists = np.zeros((num_test, num_train), np.float32)
+        for i_test in range(num_test):
+            for i_train in range(num_train):
+                dists[i_test][i_train] = np.sum(abs(X[i_test] - self.train_X[i_train]))
+
+        return dists
+
+    def compute_distances_one_loop(self, X):
+        num_train = self.train_X.shape[0]
+        num_test = X.shape[0]
+        dists = np.zeros((num_test, num_train), np.float32)
+        for i_test in range(num_test):
+            dists[i_test] = np.sum(abs((X[i_test] - self.train_X)), axis=1)
+        return dists
+
+    def predict_labels_binary(self, dists):
+        num_test = dists.shape[0]
+        pred = np.zeros(num_test, np.bool_)
+        for i in range(num_test):
+            sorted_indeksi_rasstoynii = np.argsort(dists[i, :])
+            closed_y = sorted_indeksi_rasstoynii[:min(self.k, len(sorted_indeksi_rasstoynii))]
+            y_vozm = binary_train_y[closed_y]
+            sl = {True: 0, False: 0}
+            for a in y_vozm:
+                sl[a] += 1
+            if sl[True] > sl[False]:
+                pred[i] = True
+            else:
+                pred[i] = False
+        return pred
+
+
+def binary_classification_metrics(prediction, ground_truth):
+    TP = 0
+    FN = 0
+    FP = 0
+    TN = 0
+    for i in range(len(prediction)):
+        if prediction[i] == True and ground_truth[i] == True:
+            TP += 1
+        elif prediction[i] == True and ground_truth[i] == False:
+            FP += 1
+        elif prediction[i] == False and ground_truth[i] == False:
+            TN += 1
+        elif prediction[i] == False and ground_truth[i] == True:
+            FN += 1
+    precision = TP / (TP + FP)
+    recall = TP / (TP + FN)
+    accuracy = (TP + TN) / (TP + TN + FP + FN)
+    f1 = 2 * precision * recall / (precision + recall)
+    return precision, recall, f1, accuracy
+
+
+for k in range(1, 10):
+    knn_classifier = KNN(k=k)
+    knn_classifier.fit(binary_train_X, binary_train_y)
+    prediction = knn_classifier.predict(binary_test_X)
+
+    print(f'k = {k}')
+    precision, recall, f1, accuracy = binary_classification_metrics(prediction, binary_test_y)
+    print("KNN with k = %s" % knn_classifier.k)
+    print("Accuracy: %4.2f, Precision: %4.2f, Recall: %4.2f, F1: %4.2f" % (accuracy, precision, recall, f1))
